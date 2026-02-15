@@ -89,4 +89,4 @@ Documentation is at [https://pkg.go.dev/github.com/iand/gogramps](https://pkg.go
 
 ## License
 
-This is free software released under the GNU General Public License v2.0. See the accompanying [`LICENSE`](LICENSE) file for details.
+This is free software released under the GNU General Public License v2.0. See the accompanying [`COPYING`](COPYING) file for details.
