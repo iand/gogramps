@@ -639,6 +639,44 @@ func TestSupportedSchemaVersion(t *testing.T) {
 	if v != "21" {
 		t.Errorf("version = %v, want %q", v, "21")
 	}
+	if db.SchemaVersion() != 21 {
+		t.Errorf("SchemaVersion() = %d, want 21", db.SchemaVersion())
+	}
+}
+
+func TestSchemaVersion(t *testing.T) {
+	testCases := []struct {
+		name  string
+		setup func(t *testing.T) *Database
+		want  int
+	}{
+		{
+			name:  "newly_created",
+			setup: func(t *testing.T) *Database { return createTestDB(t) },
+			want:  maxSupportedSchemaVersion,
+		},
+		{
+			name: "schema21",
+			setup: func(t *testing.T) *Database {
+				db, err := OpenReadOnly(filepath.Join("testdata", "schema21"))
+				if err != nil {
+					t.Fatalf("OpenReadOnly: %v", err)
+				}
+				return db
+			},
+			want: 21,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := tc.setup(t)
+			defer db.Close()
+			if got := db.SchemaVersion(); got != tc.want {
+				t.Errorf("SchemaVersion() = %d, want %d", got, tc.want)
+			}
+		})
+	}
 }
 
 func createTestDB(t *testing.T) *Database {

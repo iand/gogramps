@@ -22,10 +22,10 @@ type ErrUnsupportedSchema struct {
 }
 
 func (e *ErrUnsupportedSchema) Error() string {
-	return fmt.Sprintf("unsupported schema version: %d (supported: %d)", e.Version, supportedSchemaVersion)
+	return fmt.Sprintf("unsupported schema version %d (supported: %d-%d)", e.Version, minSupportedSchemaVersion, maxSupportedSchemaVersion)
 }
 
-const supportedSchemaVersion = 21
+const minSupportedSchemaVersion = 21
 
 const (
 	sqliteDBFile  = "sqlite.db"
@@ -40,7 +40,11 @@ type Database struct {
 	dir      string
 	locked   bool
 	readonly bool
+	version  int
 }
+
+// SchemaVersion returns the schema version number of the database.
+func (d *Database) SchemaVersion() int { return d.version }
 
 // Open opens an existing Gramps database directory and acquires a lock.
 func Open(path string) (*Database, error) {
@@ -70,13 +74,19 @@ func Open(path string) (*Database, error) {
 		return nil, fmt.Errorf("database at %s has no schema", path)
 	}
 
-	if err := checkSchemaVersion(db); err != nil {
+	version, err := readSchemaVersion(db)
+	if err != nil {
+		db.Close()
+		removeLockFile(path)
+		return nil, err
+	}
+	if err := validateSchemaVersion(version); err != nil {
 		db.Close()
 		removeLockFile(path)
 		return nil, err
 	}
 
-	return &Database{db: db, dir: path, locked: true}, nil
+	return &Database{db: db, dir: path, locked: true, version: version}, nil
 }
 
 // OpenReadOnly opens an existing Gramps database directory without locking.
@@ -100,12 +110,17 @@ func OpenReadOnly(path string) (*Database, error) {
 		return nil, fmt.Errorf("database at %s has no schema", path)
 	}
 
-	if err := checkSchemaVersion(db); err != nil {
+	version, err := readSchemaVersion(db)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := validateSchemaVersion(version); err != nil {
 		db.Close()
 		return nil, err
 	}
 
-	return &Database{db: db, dir: path, readonly: true}, nil
+	return &Database{db: db, dir: path, readonly: true, version: version}, nil
 }
 
 // Create creates a new Gramps database directory with the given name.
@@ -143,13 +158,13 @@ func Create(path string, name string) (*Database, error) {
 	}
 
 	// Set schema version.
-	if err := setMetadata(db, "version", fmt.Sprintf("%d", supportedSchemaVersion)); err != nil {
+	if err := setMetadata(db, "version", fmt.Sprintf("%d", maxSupportedSchemaVersion)); err != nil {
 		db.Close()
 		removeLockFile(path)
 		return nil, fmt.Errorf("setting schema version: %w", err)
 	}
 
-	return &Database{db: db, dir: path, locked: true}, nil
+	return &Database{db: db, dir: path, locked: true, version: maxSupportedSchemaVersion}, nil
 }
 
 // Close closes the database and releases the lock if held.
@@ -167,75 +182,64 @@ func (d *Database) Close() error {
 // Dir returns the database directory path.
 func (d *Database) Dir() string { return d.dir }
 
-func checkSchemaVersion(db *sql.DB) error {
-	// Check whether the metadata table uses json_data (modern) or value BLOB (legacy).
-	var hasJSONData bool
-	rows, err := db.Query("PRAGMA table_info(metadata)")
-	if err != nil {
-		return fmt.Errorf("reading metadata schema: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cid int
-		var name, typ string
-		var notnull int
-		var dflt sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
-			return err
-		}
-		if name == "json_data" {
-			hasJSONData = true
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
+// readSchemaVersion reads the schema version number from the metadata table.
+// It handles the legacy blob format (schema < 21) and the JSON format (schema >= 21).
+func readSchemaVersion(db *sql.DB) (int, error) {
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('metadata') WHERE name='json_data'").Scan(&count); err != nil {
+		return 0, fmt.Errorf("reading metadata schema: %w", err)
 	}
 
-	if !hasJSONData {
-		// Legacy schema without json_data — this is an unsupported older format.
-		// Try to read the version from the BLOB value column to report it.
-		version := 0
+	if count == 0 {
+		// Legacy schema: version is pickle-encoded in the value BLOB column.
 		var blob []byte
-		err := db.QueryRow("SELECT value FROM metadata WHERE setting = 'version'").Scan(&blob)
-		if err == nil {
-			// The blob is a pickle, but the version number appears as ASCII digits near the end.
-			for i := len(blob) - 1; i >= 0; i-- {
-				if blob[i] >= '0' && blob[i] <= '9' {
-					// Scan backwards to find start of digit sequence.
-					j := i
-					for j > 0 && blob[j-1] >= '0' && blob[j-1] <= '9' {
-						j--
-					}
-					fmt.Sscanf(string(blob[j:i+1]), "%d", &version)
-					break
-				}
-			}
+		if err := db.QueryRow("SELECT value FROM metadata WHERE setting = 'version'").Scan(&blob); err != nil {
+			return 0, fmt.Errorf("reading schema version: %w", err)
 		}
-		return &ErrUnsupportedSchema{Version: version}
+		return extractVersionFromPickle(blob), nil
 	}
 
 	v, err := getMetadata(db, "version")
 	if err != nil {
-		return fmt.Errorf("reading schema version: %w", err)
+		return 0, fmt.Errorf("reading schema version: %w", err)
 	}
 	if v == nil {
-		// No version metadata; treat as current (e.g. freshly created).
-		return nil
+		return minSupportedSchemaVersion, nil
 	}
-	// Gramps stores version as a JSON string like "21".
 	vs, ok := v.(string)
 	if !ok {
-		return fmt.Errorf("unexpected schema version type: %T", v)
+		return 0, fmt.Errorf("unexpected schema version type: %T", v)
 	}
 	var version int
 	if _, err := fmt.Sscanf(vs, "%d", &version); err != nil {
-		return fmt.Errorf("parsing schema version %q: %w", vs, err)
+		return 0, fmt.Errorf("parsing schema version %q: %w", vs, err)
 	}
-	if version != supportedSchemaVersion {
-		return &ErrUnsupportedSchema{Version: version}
+	return version, nil
+}
+
+// validateSchemaVersion returns ErrUnsupportedSchema if v is outside the supported range.
+func validateSchemaVersion(v int) error {
+	if v < minSupportedSchemaVersion || v > maxSupportedSchemaVersion {
+		return &ErrUnsupportedSchema{Version: v}
 	}
 	return nil
+}
+
+// extractVersionFromPickle extracts a version integer from a pickle-encoded blob.
+// Gramps serialises the version as a Python string; the digits appear as ASCII near the end.
+func extractVersionFromPickle(blob []byte) int {
+	for i := len(blob) - 1; i >= 0; i-- {
+		if blob[i] >= '0' && blob[i] <= '9' {
+			j := i
+			for j > 0 && blob[j-1] >= '0' && blob[j-1] <= '9' {
+				j--
+			}
+			var version int
+			fmt.Sscanf(string(blob[j:i+1]), "%d", &version)
+			return version
+		}
+	}
+	return 0
 }
 
 func checkBackend(path string) error {

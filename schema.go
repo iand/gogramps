@@ -135,6 +135,8 @@ func createSchema(db *sql.DB) error {
 		`CREATE INDEX reference_obj_handle ON reference(obj_handle)`,
 	}
 
+	stmts = append(stmts, schema23Tables()...)
+
 	tx, err := db.Begin()
 	if err != nil {
 		return err
