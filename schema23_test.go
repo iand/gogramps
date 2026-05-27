@@ -19,7 +19,8 @@ func TestDNATestCRUD(t *testing.T) {
 		KitID:        "KIT12345",
 		TestType:     GrampsType{Class: "DNATestType", Value: DNATestAutosomal},
 		GenomeBuild:  GrampsType{Class: "DNAGenomeBuildType", Value: DNAGenomeBuildGRCh37},
-		Haplogroup:   "R-M269",
+		YHaplogroup:  "R-M269",
+		MtHaplogroup: "H1a",
 		Change:       1700000000,
 	}
 
@@ -28,12 +29,12 @@ func TestDNATestCRUD(t *testing.T) {
 	}
 
 	// Verify secondary columns are populated.
-	var secGrampsID, secPersonHandle, secAccountName, secKitID, secHaplogroup string
+	var secGrampsID, secPersonHandle, secAccountName, secKitID, secYHaplogroup, secMtHaplogroup string
 	var secChange, secPrivate int
 	err := db.db.QueryRow(
-		"SELECT gramps_id, person_handle, account_name, kit_id, haplogroup, change, private FROM dnatest WHERE handle = ?",
+		"SELECT gramps_id, person_handle, account_name, kit_id, y_haplogroup, mt_haplogroup, change, private FROM dnatest WHERE handle = ?",
 		handle,
-	).Scan(&secGrampsID, &secPersonHandle, &secAccountName, &secKitID, &secHaplogroup, &secChange, &secPrivate)
+	).Scan(&secGrampsID, &secPersonHandle, &secAccountName, &secKitID, &secYHaplogroup, &secMtHaplogroup, &secChange, &secPrivate)
 	if err != nil {
 		t.Fatalf("secondary columns query: unexpected error: %v", err)
 	}
@@ -49,8 +50,11 @@ func TestDNATestCRUD(t *testing.T) {
 	if secKitID != "KIT12345" {
 		t.Errorf("secondary kit_id = %q, want %q", secKitID, "KIT12345")
 	}
-	if secHaplogroup != "R-M269" {
-		t.Errorf("secondary haplogroup = %q, want %q", secHaplogroup, "R-M269")
+	if secYHaplogroup != "R-M269" {
+		t.Errorf("secondary y_haplogroup = %q, want %q", secYHaplogroup, "R-M269")
+	}
+	if secMtHaplogroup != "H1a" {
+		t.Errorf("secondary mt_haplogroup = %q, want %q", secMtHaplogroup, "H1a")
 	}
 	if secChange != 1700000000 {
 		t.Errorf("secondary change = %d, want %d", secChange, 1700000000)
@@ -75,8 +79,11 @@ func TestDNATestCRUD(t *testing.T) {
 	if got.KitID != "KIT12345" {
 		t.Errorf("KitID = %q, want %q", got.KitID, "KIT12345")
 	}
-	if got.Haplogroup != "R-M269" {
-		t.Errorf("Haplogroup = %q, want %q", got.Haplogroup, "R-M269")
+	if got.YHaplogroup != "R-M269" {
+		t.Errorf("YHaplogroup = %q, want %q", got.YHaplogroup, "R-M269")
+	}
+	if got.MtHaplogroup != "H1a" {
+		t.Errorf("MtHaplogroup = %q, want %q", got.MtHaplogroup, "H1a")
 	}
 
 	got2, err := db.GetDNATestByGrampsID("D0001")
@@ -87,22 +94,22 @@ func TestDNATestCRUD(t *testing.T) {
 		t.Errorf("GetDNATestByGrampsID: wrong result")
 	}
 
-	dt.Haplogroup = "I-M253"
+	dt.YHaplogroup = "I-M253"
 	if err := db.UpdateDNATest(dt); err != nil {
 		t.Fatalf("UpdateDNATest: unexpected error: %v", err)
 	}
-	if err := db.db.QueryRow("SELECT haplogroup FROM dnatest WHERE handle = ?", handle).Scan(&secHaplogroup); err != nil {
-		t.Fatalf("secondary haplogroup after update: unexpected error: %v", err)
+	if err := db.db.QueryRow("SELECT y_haplogroup FROM dnatest WHERE handle = ?", handle).Scan(&secYHaplogroup); err != nil {
+		t.Fatalf("secondary y_haplogroup after update: unexpected error: %v", err)
 	}
-	if secHaplogroup != "I-M253" {
-		t.Errorf("secondary haplogroup after update = %q, want %q", secHaplogroup, "I-M253")
+	if secYHaplogroup != "I-M253" {
+		t.Errorf("secondary y_haplogroup after update = %q, want %q", secYHaplogroup, "I-M253")
 	}
 	got, err = db.GetDNATest(handle)
 	if err != nil {
 		t.Fatalf("GetDNATest after update: unexpected error: %v", err)
 	}
-	if got.Haplogroup != "I-M253" {
-		t.Errorf("Haplogroup after update = %q, want %q", got.Haplogroup, "I-M253")
+	if got.YHaplogroup != "I-M253" {
+		t.Errorf("YHaplogroup after update = %q, want %q", got.YHaplogroup, "I-M253")
 	}
 
 	count := 0

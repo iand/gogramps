@@ -107,7 +107,8 @@ type DNATest struct {
 	TestType      GrampsType     `json:"test_type"`
 	GenomeBuild   GrampsType     `json:"genome_build"`
 	Date          *Date          `json:"date"`
-	Haplogroup    string         `json:"haplogroup"`
+	YHaplogroup   string         `json:"y_haplogroup"`
+	MtHaplogroup  string         `json:"mt_haplogroup"`
 	CitationList  []string       `json:"citation_list"`
 	NoteList      []string       `json:"note_list"`
 	MediaList     []MediaRef     `json:"media_list"`
@@ -199,8 +200,8 @@ func (d *Database) DeleteDNAMatch(handle string) error {
 
 func dnaTestSecondary(t *DNATest) secondaryValues {
 	return secondaryValues{
-		sets:   []string{"gramps_id", "person_handle", "account_name", "kit_id", "haplogroup", "change", "private"},
-		values: []any{t.GrampsID, t.PersonHandle, t.AccountName, t.KitID, t.Haplogroup, t.Change, boolToInt(t.Private)},
+		sets:   []string{"gramps_id", "person_handle", "account_name", "kit_id", "y_haplogroup", "mt_haplogroup", "change", "private"},
+		values: []any{t.GrampsID, t.PersonHandle, t.AccountName, t.KitID, t.YHaplogroup, t.MtHaplogroup, t.Change, boolToInt(t.Private)},
 	}
 }
 
@@ -225,7 +226,8 @@ func schema23Tables() []string {
 		`ALTER TABLE dnatest ADD COLUMN person_handle VARCHAR(50)`,
 		`ALTER TABLE dnatest ADD COLUMN account_name TEXT`,
 		`ALTER TABLE dnatest ADD COLUMN kit_id TEXT`,
-		`ALTER TABLE dnatest ADD COLUMN haplogroup TEXT`,
+		`ALTER TABLE dnatest ADD COLUMN y_haplogroup TEXT`,
+		`ALTER TABLE dnatest ADD COLUMN mt_haplogroup TEXT`,
 		`ALTER TABLE dnatest ADD COLUMN change INTEGER`,
 		`ALTER TABLE dnatest ADD COLUMN private INTEGER`,
 		`ALTER TABLE dnamatch ADD COLUMN gramps_id TEXT`,
