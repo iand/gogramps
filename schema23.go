@@ -7,6 +7,7 @@ import "iter"
 const maxSupportedSchemaVersion = 23
 
 // DNAProviderType values.
+// Value 5 was GEDmatch, removed as it is not a test provider.
 const (
 	DNAProviderUnknown    = -1
 	DNAProviderCustom     = 0
@@ -14,7 +15,6 @@ const (
 	DNAProvider23AndMe    = 2
 	DNAProviderMyHeritage = 3
 	DNAProviderFTDNA      = 4
-	DNAProviderGEDmatch   = 5
 	DNAProviderLivingDNA  = 6
 )
 
@@ -40,12 +40,12 @@ const (
 	DNAGenomeBuildGRCh38  = 2
 )
 
-// DNASegment phase values.
+// DNASegment origin values (parental origin of the segment).
 const (
-	DNAPhaseUnassigned = 0
-	DNAPhaseUnknown    = 1
-	DNAPhaseMaternal   = 2
-	DNAPhasePaternal   = 3
+	DNAOriginUnassigned = 0
+	DNAOriginUnknown    = 1
+	DNAOriginMaternal   = 2
+	DNAOriginPaternal   = 3
 )
 
 // DNASegment IBD state values.
@@ -53,6 +53,21 @@ const (
 	DNAIBDUnknown              = 0
 	DNAIBDHalfIdenticalRegion  = 1
 	DNAIBDFullyIdenticalRegion = 2
+)
+
+// PredictedRelationship side values (which side of the tree the MRCA lies on).
+const (
+	PredictedRelSideUnknown  = 0
+	PredictedRelSideMaternal = 1
+	PredictedRelSidePaternal = 2
+	PredictedRelSideBoth     = 3
+)
+
+// PredictedRelationship full-or-half values.
+const (
+	PredictedRelFOHUnknown = 0
+	PredictedRelFOHHalf    = 1
+	PredictedRelFOHFull    = 2
 )
 
 // SharedAncestor confidence values.
@@ -73,16 +88,18 @@ type DNAAttribute struct {
 
 // DNASegment is a single shared chromosomal segment within a DNAMatch.
 type DNASegment struct {
-	Class      string  `json:"_class"`
-	Chromosome string  `json:"chromosome"`
-	StartBP    int     `json:"start_bp"`
-	EndBP      int     `json:"end_bp"`
-	StartRSID  *string `json:"start_rsid"`
-	EndRSID    *string `json:"end_rsid"`
-	SharedCM   float64 `json:"shared_cm"`
-	SNPCount   int     `json:"snp_count"`
-	Phase      int     `json:"phase"`
-	IBDState   int     `json:"ibd_state"`
+	Class            string     `json:"_class"`
+	Chromosome       string     `json:"chromosome"`
+	StartBP          int        `json:"start_bp"`
+	EndBP            int        `json:"end_bp"`
+	StartRSID        *string    `json:"start_rsid"`
+	EndRSID          *string    `json:"end_rsid"`
+	SharedCM         float64    `json:"shared_cm"`
+	SharedCMWeighted float64    `json:"shared_cm_weighted"`
+	SNPCount         int        `json:"snp_count"`
+	Origin           int        `json:"origin"`
+	IBDState         int        `json:"ibd_state"`
+	GenomeBuild      GrampsType `json:"genome_build"`
 }
 
 // SharedAncestor records a hypothesis or confirmed MRCA for a DNAMatch.
@@ -93,6 +110,22 @@ type SharedAncestor struct {
 	Confidence   int      `json:"confidence"`
 	CitationList []string `json:"citation_list"`
 	NoteList     []string `json:"note_list"`
+}
+
+// PredictedRelationship is one predicted way the two test takers of a DNAMatch
+// may be related, mainly useful before the match is placed in the tree. A
+// DNAMatch may hold several when the relationship is uncertain.
+type PredictedRelationship struct {
+	Class           string   `json:"_class"`
+	Description     string   `json:"description"`
+	SubjectMRCAGens int      `json:"subject_mrca_gens"`
+	SubjectSide     int      `json:"subject_side"`
+	MatchMRCAGens   int      `json:"match_mrca_gens"`
+	MatchSide       int      `json:"match_side"`
+	FullOrHalf      int      `json:"full_or_half"`
+	Probability     float64  `json:"probability"`
+	CitationList    []string `json:"citation_list"`
+	NoteList        []string `json:"note_list"`
 }
 
 // DNATest represents one DNA kit for one person at one provider.
@@ -120,26 +153,27 @@ type DNATest struct {
 
 // DNAMatch represents a pairwise DNA match between two kits.
 type DNAMatch struct {
-	Class                 string           `json:"_class"`
-	Handle                string           `json:"handle"`
-	GrampsID              string           `json:"gramps_id"`
-	SubjectTestHandle     *string          `json:"subject_test_handle"`
-	MatchTestHandle       *string          `json:"match_test_handle"`
-	SharedCM              float64          `json:"shared_cm"`
-	PercentShared         float64          `json:"percent_shared"`
-	SegmentCount          int              `json:"segment_count"`
-	LargestSegmentCM      float64          `json:"largest_segment_cm"`
-	PredictedRelationship string           `json:"predicted_relationship"`
-	PredictedGenerations  *float64         `json:"predicted_generations"`
-	SharedAncestorList    []SharedAncestor `json:"shared_ancestor_list"`
-	SegmentList           []DNASegment     `json:"segment_list"`
-	CitationList          []string         `json:"citation_list"`
-	NoteList              []string         `json:"note_list"`
-	MediaList             []MediaRef       `json:"media_list"`
-	AttributeList         []DNAAttribute   `json:"attribute_list"`
-	Change                int              `json:"change"`
-	TagList               []string         `json:"tag_list"`
-	Private               bool             `json:"private"`
+	Class                     string                  `json:"_class"`
+	Handle                    string                  `json:"handle"`
+	GrampsID                  string                  `json:"gramps_id"`
+	SubjectTestHandle         *string                 `json:"subject_test_handle"`
+	MatchTestHandle           *string                 `json:"match_test_handle"`
+	SharedCM                  float64                 `json:"shared_cm"`
+	SharedCMWeighted          float64                 `json:"shared_cm_weighted"`
+	PercentShared             float64                 `json:"percent_shared"`
+	SegmentCount              int                     `json:"segment_count"`
+	LargestSegmentCM          float64                 `json:"largest_segment_cm"`
+	LargestSegmentCMWeighted  float64                 `json:"largest_segment_cm_weighted"`
+	PredictedRelationshipList []PredictedRelationship `json:"predicted_relationship_list"`
+	SharedAncestorList        []SharedAncestor        `json:"shared_ancestor_list"`
+	SegmentList               []DNASegment            `json:"segment_list"`
+	CitationList              []string                `json:"citation_list"`
+	NoteList                  []string                `json:"note_list"`
+	MediaList                 []MediaRef              `json:"media_list"`
+	AttributeList             []DNAAttribute          `json:"attribute_list"`
+	Change                    int                     `json:"change"`
+	TagList                   []string                `json:"tag_list"`
+	Private                   bool                    `json:"private"`
 }
 
 // DNATest operations.
@@ -207,8 +241,8 @@ func dnaTestSecondary(t *DNATest) secondaryValues {
 
 func dnaMatchSecondary(m *DNAMatch) secondaryValues {
 	return secondaryValues{
-		sets:   []string{"gramps_id", "subject_test_handle", "match_test_handle", "shared_cm", "percent_shared", "segment_count", "largest_segment_cm", "predicted_relationship", "predicted_generations", "change", "private"},
-		values: []any{m.GrampsID, m.SubjectTestHandle, m.MatchTestHandle, m.SharedCM, m.PercentShared, m.SegmentCount, m.LargestSegmentCM, m.PredictedRelationship, m.PredictedGenerations, m.Change, boolToInt(m.Private)},
+		sets:   []string{"gramps_id", "subject_test_handle", "match_test_handle", "shared_cm", "shared_cm_weighted", "percent_shared", "segment_count", "largest_segment_cm", "largest_segment_cm_weighted", "change", "private"},
+		values: []any{m.GrampsID, m.SubjectTestHandle, m.MatchTestHandle, m.SharedCM, m.SharedCMWeighted, m.PercentShared, m.SegmentCount, m.LargestSegmentCM, m.LargestSegmentCMWeighted, m.Change, boolToInt(m.Private)},
 	}
 }
 
@@ -234,11 +268,11 @@ func schema23Tables() []string {
 		`ALTER TABLE dnamatch ADD COLUMN subject_test_handle VARCHAR(50)`,
 		`ALTER TABLE dnamatch ADD COLUMN match_test_handle VARCHAR(50)`,
 		`ALTER TABLE dnamatch ADD COLUMN shared_cm REAL`,
+		`ALTER TABLE dnamatch ADD COLUMN shared_cm_weighted REAL`,
 		`ALTER TABLE dnamatch ADD COLUMN percent_shared REAL`,
 		`ALTER TABLE dnamatch ADD COLUMN segment_count INTEGER`,
 		`ALTER TABLE dnamatch ADD COLUMN largest_segment_cm REAL`,
-		`ALTER TABLE dnamatch ADD COLUMN predicted_relationship TEXT`,
-		`ALTER TABLE dnamatch ADD COLUMN predicted_generations REAL`,
+		`ALTER TABLE dnamatch ADD COLUMN largest_segment_cm_weighted REAL`,
 		`ALTER TABLE dnamatch ADD COLUMN change INTEGER`,
 		`ALTER TABLE dnamatch ADD COLUMN private INTEGER`,
 		`CREATE INDEX dnatest_gramps_id ON dnatest(gramps_id)`,

@@ -142,19 +142,46 @@ func TestDNAMatchCRUD(t *testing.T) {
 	handle := NewHandle()
 	subjectHandle := "dnatest_subject_123"
 	matchHandle := "dnatest_match_456"
-	generations := 2.5
 	dm := &DNAMatch{
-		Handle:                handle,
-		GrampsID:              "M0001",
-		SubjectTestHandle:     &subjectHandle,
-		MatchTestHandle:       &matchHandle,
-		SharedCM:              187.3,
-		PercentShared:         2.8,
-		SegmentCount:          8,
-		LargestSegmentCM:      54.2,
-		PredictedRelationship: "1st Cousin",
-		PredictedGenerations:  &generations,
-		Change:                1700000000,
+		Handle:                   handle,
+		GrampsID:                 "M0001",
+		SubjectTestHandle:        &subjectHandle,
+		MatchTestHandle:          &matchHandle,
+		SharedCM:                 187.3,
+		SharedCMWeighted:         182.1,
+		PercentShared:            2.8,
+		SegmentCount:             8,
+		LargestSegmentCM:         54.2,
+		LargestSegmentCMWeighted: 52.0,
+		PredictedRelationshipList: []PredictedRelationship{
+			{
+				Class:           "PredictedRelationship",
+				Description:     "1st Cousin",
+				SubjectMRCAGens: 2,
+				SubjectSide:     PredictedRelSideMaternal,
+				MatchMRCAGens:   2,
+				MatchSide:       PredictedRelSidePaternal,
+				FullOrHalf:      PredictedRelFOHFull,
+				Probability:     0.85,
+				CitationList:    []string{"citation_handle_1"},
+				NoteList:        []string{"note_handle_1"},
+			},
+		},
+		SegmentList: []DNASegment{
+			{
+				Class:            "DNASegment",
+				Chromosome:       "7",
+				StartBP:          12000000,
+				EndBP:            30000000,
+				SharedCM:         54.2,
+				SharedCMWeighted: 52.0,
+				SNPCount:         678,
+				Origin:           DNAOriginMaternal,
+				IBDState:         DNAIBDHalfIdenticalRegion,
+				GenomeBuild:      GrampsType{Class: "DNAGenomeBuildType", Value: DNAGenomeBuildGRCh37},
+			},
+		},
+		Change: 1700000000,
 	}
 
 	if err := db.AddDNAMatch(dm); err != nil {
@@ -162,13 +189,13 @@ func TestDNAMatchCRUD(t *testing.T) {
 	}
 
 	// Verify secondary columns are populated.
-	var secGrampsID, secSubjectHandle, secMatchHandle, secPredRel string
-	var secSharedCM, secPercentShared, secLargestCM, secPredGen float64
+	var secGrampsID, secSubjectHandle, secMatchHandle string
+	var secSharedCM, secSharedCMWeighted, secPercentShared, secLargestCM, secLargestCMWeighted float64
 	var secSegCount, secChange, secPrivate int
 	err := db.db.QueryRow(
-		"SELECT gramps_id, subject_test_handle, match_test_handle, shared_cm, percent_shared, segment_count, largest_segment_cm, predicted_relationship, predicted_generations, change, private FROM dnamatch WHERE handle = ?",
+		"SELECT gramps_id, subject_test_handle, match_test_handle, shared_cm, shared_cm_weighted, percent_shared, segment_count, largest_segment_cm, largest_segment_cm_weighted, change, private FROM dnamatch WHERE handle = ?",
 		handle,
-	).Scan(&secGrampsID, &secSubjectHandle, &secMatchHandle, &secSharedCM, &secPercentShared, &secSegCount, &secLargestCM, &secPredRel, &secPredGen, &secChange, &secPrivate)
+	).Scan(&secGrampsID, &secSubjectHandle, &secMatchHandle, &secSharedCM, &secSharedCMWeighted, &secPercentShared, &secSegCount, &secLargestCM, &secLargestCMWeighted, &secChange, &secPrivate)
 	if err != nil {
 		t.Fatalf("secondary columns query: unexpected error: %v", err)
 	}
@@ -184,6 +211,9 @@ func TestDNAMatchCRUD(t *testing.T) {
 	if secSharedCM != 187.3 {
 		t.Errorf("secondary shared_cm = %v, want 187.3", secSharedCM)
 	}
+	if secSharedCMWeighted != 182.1 {
+		t.Errorf("secondary shared_cm_weighted = %v, want 182.1", secSharedCMWeighted)
+	}
 	if secPercentShared != 2.8 {
 		t.Errorf("secondary percent_shared = %v, want 2.8", secPercentShared)
 	}
@@ -193,11 +223,8 @@ func TestDNAMatchCRUD(t *testing.T) {
 	if secLargestCM != 54.2 {
 		t.Errorf("secondary largest_segment_cm = %v, want 54.2", secLargestCM)
 	}
-	if secPredRel != "1st Cousin" {
-		t.Errorf("secondary predicted_relationship = %q, want %q", secPredRel, "1st Cousin")
-	}
-	if secPredGen != 2.5 {
-		t.Errorf("secondary predicted_generations = %v, want 2.5", secPredGen)
+	if secLargestCMWeighted != 52.0 {
+		t.Errorf("secondary largest_segment_cm_weighted = %v, want 52.0", secLargestCMWeighted)
 	}
 	if secChange != 1700000000 {
 		t.Errorf("secondary change = %d, want %d", secChange, 1700000000)
@@ -219,29 +246,52 @@ func TestDNAMatchCRUD(t *testing.T) {
 	if got.SharedCM != 187.3 {
 		t.Errorf("SharedCM = %v, want 187.3", got.SharedCM)
 	}
-	if got.PredictedRelationship != "1st Cousin" {
-		t.Errorf("PredictedRelationship = %q, want %q", got.PredictedRelationship, "1st Cousin")
+	if got.SharedCMWeighted != 182.1 {
+		t.Errorf("SharedCMWeighted = %v, want 182.1", got.SharedCMWeighted)
 	}
-	if got.PredictedGenerations == nil || *got.PredictedGenerations != 2.5 {
-		t.Errorf("PredictedGenerations mismatch")
+	if len(got.PredictedRelationshipList) != 1 {
+		t.Fatalf("PredictedRelationshipList len = %d, want 1", len(got.PredictedRelationshipList))
+	}
+	pr := got.PredictedRelationshipList[0]
+	if pr.Description != "1st Cousin" {
+		t.Errorf("PredictedRelationship description = %q, want %q", pr.Description, "1st Cousin")
+	}
+	if pr.SubjectSide != PredictedRelSideMaternal || pr.MatchSide != PredictedRelSidePaternal {
+		t.Errorf("PredictedRelationship sides = %d/%d, want %d/%d", pr.SubjectSide, pr.MatchSide, PredictedRelSideMaternal, PredictedRelSidePaternal)
+	}
+	if pr.Probability != 0.85 {
+		t.Errorf("PredictedRelationship probability = %v, want 0.85", pr.Probability)
+	}
+	if len(got.SegmentList) != 1 {
+		t.Fatalf("SegmentList len = %d, want 1", len(got.SegmentList))
+	}
+	seg := got.SegmentList[0]
+	if seg.Origin != DNAOriginMaternal {
+		t.Errorf("segment origin = %d, want %d", seg.Origin, DNAOriginMaternal)
+	}
+	if seg.SharedCMWeighted != 52.0 {
+		t.Errorf("segment shared_cm_weighted = %v, want 52.0", seg.SharedCMWeighted)
+	}
+	if seg.GenomeBuild.Value != DNAGenomeBuildGRCh37 {
+		t.Errorf("segment genome_build = %d, want %d", seg.GenomeBuild.Value, DNAGenomeBuildGRCh37)
 	}
 
-	dm.PredictedRelationship = "2nd Cousin"
+	dm.SharedCMWeighted = 180.0
 	if err := db.UpdateDNAMatch(dm); err != nil {
 		t.Fatalf("UpdateDNAMatch: unexpected error: %v", err)
 	}
-	if err := db.db.QueryRow("SELECT predicted_relationship FROM dnamatch WHERE handle = ?", handle).Scan(&secPredRel); err != nil {
-		t.Fatalf("secondary predicted_relationship after update: unexpected error: %v", err)
+	if err := db.db.QueryRow("SELECT shared_cm_weighted FROM dnamatch WHERE handle = ?", handle).Scan(&secSharedCMWeighted); err != nil {
+		t.Fatalf("secondary shared_cm_weighted after update: unexpected error: %v", err)
 	}
-	if secPredRel != "2nd Cousin" {
-		t.Errorf("secondary predicted_relationship after update = %q, want %q", secPredRel, "2nd Cousin")
+	if secSharedCMWeighted != 180.0 {
+		t.Errorf("secondary shared_cm_weighted after update = %v, want 180.0", secSharedCMWeighted)
 	}
 	got, err = db.GetDNAMatch(handle)
 	if err != nil {
 		t.Fatalf("GetDNAMatch after update: unexpected error: %v", err)
 	}
-	if got.PredictedRelationship != "2nd Cousin" {
-		t.Errorf("PredictedRelationship after update = %q, want %q", got.PredictedRelationship, "2nd Cousin")
+	if got.SharedCMWeighted != 180.0 {
+		t.Errorf("SharedCMWeighted after update = %v, want 180.0", got.SharedCMWeighted)
 	}
 
 	count := 0
