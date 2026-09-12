@@ -147,6 +147,7 @@ func TestDNAMatchCRUD(t *testing.T) {
 		GrampsID:                 "M0001",
 		SubjectTestHandle:        &subjectHandle,
 		MatchTestHandle:          &matchHandle,
+		Provider:                 GrampsType{Class: "DNAProviderType", Value: DNAProviderGEDmatch},
 		SharedCM:                 187.3,
 		SharedCMWeighted:         182.1,
 		PercentShared:            2.8,
@@ -248,6 +249,12 @@ func TestDNAMatchCRUD(t *testing.T) {
 	}
 	if got.SharedCMWeighted != 182.1 {
 		t.Errorf("SharedCMWeighted = %v, want 182.1", got.SharedCMWeighted)
+	}
+	if got.Provider.Value != DNAProviderGEDmatch {
+		t.Errorf("Provider value = %d, want %d", got.Provider.Value, DNAProviderGEDmatch)
+	}
+	if got.Provider.Class != "DNAProviderType" {
+		t.Errorf("Provider class = %q, want %q", got.Provider.Class, "DNAProviderType")
 	}
 	if len(got.PredictedRelationshipList) != 1 {
 		t.Fatalf("PredictedRelationshipList len = %d, want 1", len(got.PredictedRelationshipList))

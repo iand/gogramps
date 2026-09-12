@@ -4,10 +4,18 @@ package gogramps
 
 import "iter"
 
+// The DNA types in this file follow the DNA object definitions in
+// gramps/gen/lib/ on the dna-core branch of the iand/gramps fork
+// (https://github.com/iand/gramps).
+//
+// Last checked against: a98e32c6fe6b2ab5eefae88cf92ab0889a94d4cf
+// Last schema change:   917daea05fc090bffb8223305baa599c52a01994
+
 const maxSupportedSchemaVersion = 23
 
 // DNAProviderType values.
-// Value 5 was GEDmatch, removed as it is not a test provider.
+// A DNATest uses these for the service that produced the kit, a DNAMatch for
+// the service that reported the match.
 const (
 	DNAProviderUnknown    = -1
 	DNAProviderCustom     = 0
@@ -15,6 +23,7 @@ const (
 	DNAProvider23AndMe    = 2
 	DNAProviderMyHeritage = 3
 	DNAProviderFTDNA      = 4
+	DNAProviderGEDmatch   = 5
 	DNAProviderLivingDNA  = 6
 )
 
@@ -158,6 +167,7 @@ type DNAMatch struct {
 	GrampsID                  string                  `json:"gramps_id"`
 	SubjectTestHandle         *string                 `json:"subject_test_handle"`
 	MatchTestHandle           *string                 `json:"match_test_handle"`
+	Provider                  GrampsType              `json:"provider"`
 	SharedCM                  float64                 `json:"shared_cm"`
 	SharedCMWeighted          float64                 `json:"shared_cm_weighted"`
 	PercentShared             float64                 `json:"percent_shared"`
