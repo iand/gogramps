@@ -1,4 +1,4 @@
-//go:build !gramps_schema23
+//go:build !gramps_dbschema23
 
 package gogramps
 

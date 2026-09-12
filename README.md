@@ -11,11 +11,11 @@ This package provides Go types and a database API for reading and writing the na
 
 It supports all 10 primary object types: Person, Family, Event, Place, Source, Citation, Repository, Note, Media, and Tag. Schema versions 21 and 22 are supported.
 
-Experimental support for schema 23 is available using the `gramps_schema23` build tag. Schema 23 adds the DNATest and DNAMatch object types, which are being developed in the upstream Gramps project (see the [design discussion](https://github.com/gramps-project/gramps/discussions/2292) and [implementation pull request](https://github.com/gramps-project/gramps/pull/2295)). The schema 23 API may change as the upstream design evolves.
+Experimental support for schema 23 is available using the `gramps_dbschema23` build tag. Schema 23 adds the DNATest and DNAMatch object types, which are being developed in the upstream Gramps project (see the [design discussion](https://github.com/gramps-project/gramps/discussions/2292) and [implementation pull request](https://github.com/gramps-project/gramps/pull/2295)). The schema 23 API may change as the upstream design evolves.
 
 ```sh
-go build -tags gramps_schema23 ./...
-go test -tags gramps_schema23 ./...
+go build -tags gramps_dbschema23 ./...
+go test -tags gramps_dbschema23 ./...
 ```
 
 ## Status
