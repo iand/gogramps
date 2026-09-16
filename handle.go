@@ -1,16 +1,15 @@
 package gogramps
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"fmt"
+	"math/rand/v2"
+	"time"
 )
 
-// NewHandle generates a new unique handle string matching the Gramps format.
-// Gramps handles are hex-encoded random bytes, typically 25-26 characters.
+// NewHandle returns a fresh object handle in the database's storage form,
+// following the algorithm Gramps uses: the current time in tenths of a
+// millisecond and a random integer, each hex-encoded and concatenated.
 func NewHandle() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic("gogramps: failed to generate random handle: " + err.Error())
-	}
-	return hex.EncodeToString(b)
+	ticks := time.Now().UnixNano() / 100_000 // tenths of a millisecond since the Unix epoch
+	return fmt.Sprintf("%08x%08x", ticks, rand.Int64())
 }
