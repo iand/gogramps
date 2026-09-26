@@ -69,7 +69,7 @@ type LdsOrd struct {
 	Date         *Date    `json:"date"`
 	Type         int      `json:"type"`
 	Place        string   `json:"place"`
-	Famc         string   `json:"famc"`
+	Famc         *string  `json:"famc"`
 	Temple       string   `json:"temple"`
 	Status       int      `json:"status"`
 }

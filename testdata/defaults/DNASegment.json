@@ -1,0 +1,18 @@
+{
+  "_class": "DNASegment",
+  "chromosome": "",
+  "start_bp": 0,
+  "end_bp": 0,
+  "start_rsid": null,
+  "end_rsid": null,
+  "shared_cm": 0.0,
+  "shared_cm_weighted": 0.0,
+  "snp_count": 0,
+  "origin": 0,
+  "ibd_state": 0,
+  "genome_build": {
+    "_class": "DNAGenomeBuildType",
+    "value": -1,
+    "string": ""
+  }
+}

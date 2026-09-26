@@ -1,0 +1,19 @@
+{
+  "handle": null,
+  "change": 0,
+  "private": false,
+  "tag_list": [],
+  "gramps_id": null,
+  "text": {
+    "_class": "StyledText",
+    "tags": [],
+    "string": ""
+  },
+  "format": 0,
+  "type": {
+    "_class": "NoteType",
+    "value": 1,
+    "string": ""
+  },
+  "_class": "Note"
+}

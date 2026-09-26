@@ -3,6 +3,7 @@ package gogramps
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 // GrampsType represents a Gramps enumerated type (e.g., EventType, NameType).
@@ -28,6 +29,8 @@ type Date struct {
 	Sortval  int    `json:"sortval"`
 	Newyear  int    `json:"newyear"`
 	Format   *int   `json:"format"` // typically nil
+
+	numericSlash bool // numericSlash records that the stored slash flags were numbers
 }
 
 // UnmarshalJSON implements custom JSON unmarshalling for Date.
@@ -45,11 +48,18 @@ func (d *Date) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*d = Date(raw.dateAlias)
+	if raw.RawDateval == nil {
+		d.Dateval = nil
+		return nil
+	}
 	d.Dateval = make([]int, len(raw.RawDateval))
 	for i, elem := range raw.RawDateval {
 		var f float64
 		if err := json.Unmarshal(elem, &f); err == nil {
 			d.Dateval[i] = int(f)
+			if i%4 == 3 {
+				d.numericSlash = true
+			}
 			continue
 		}
 		var b bool
@@ -66,17 +76,49 @@ func (d *Date) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON writes the dateval slash flags as booleans unless the date was
+// decoded with numeric flags.
+func (d Date) MarshalJSON() ([]byte, error) {
+	type dateAlias Date
+	var dateval []any
+	if d.Dateval != nil {
+		dateval = make([]any, len(d.Dateval))
+	}
+	for i, v := range d.Dateval {
+		if i%4 == 3 && !d.numericSlash {
+			dateval[i] = v != 0
+		} else {
+			dateval[i] = v
+		}
+	}
+	return json.Marshal(struct {
+		dateAlias
+		Dateval []any `json:"dateval"`
+	}{dateAlias(d), dateval})
+}
+
 // StyledTextTag represents a formatting tag within styled text.
 type StyledTextTag struct {
 	Class  string     `json:"_class"`
 	Name   GrampsType `json:"name"`
 	Value  string     `json:"value"`
 	Ranges [][]int    `json:"ranges"`
+
+	valueKind styledValueKind // valueKind records the JSON type of the stored value
 }
 
+// styledValueKind is the JSON type of a StyledTextTag value.
+type styledValueKind int
+
+const (
+	styledValueString styledValueKind = iota
+	styledValueNull
+	styledValueNumber
+)
+
 // UnmarshalJSON implements custom JSON unmarshalling for StyledTextTag.
-// Gramps Python serializes the Value field as either a string or an integer
-// (e.g., font size). This method accepts both.
+// Gramps Python serializes the Value field as a string, an integer
+// (e.g., font size) or null. This method accepts all three.
 func (s *StyledTextTag) UnmarshalJSON(data []byte) error {
 	type alias StyledTextTag
 	var raw struct {
@@ -87,20 +129,43 @@ func (s *StyledTextTag) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*s = StyledTextTag(raw.alias)
-	if len(raw.RawValue) > 0 {
-		// Try string first.
-		var str string
-		if err := json.Unmarshal(raw.RawValue, &str); err == nil {
-			s.Value = str
-		} else {
-			// Try number, convert to string.
-			var num json.Number
-			if err := json.Unmarshal(raw.RawValue, &num); err == nil {
-				s.Value = num.String()
-			}
+	if len(raw.RawValue) == 0 || string(raw.RawValue) == "null" {
+		s.valueKind = styledValueNull
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(raw.RawValue, &str); err == nil {
+		s.Value = str
+		return nil
+	}
+	var num json.Number
+	if err := json.Unmarshal(raw.RawValue, &num); err != nil {
+		return fmt.Errorf("styled text tag value: unsupported type: %s", string(raw.RawValue))
+	}
+	s.Value = num.String()
+	s.valueKind = styledValueNumber
+	return nil
+}
+
+// MarshalJSON writes the value with the JSON type it was decoded from while
+// that type still fits the value.
+func (s StyledTextTag) MarshalJSON() ([]byte, error) {
+	type alias StyledTextTag
+	var value any = s.Value
+	switch s.valueKind {
+	case styledValueNull:
+		if s.Value == "" {
+			value = nil
+		}
+	case styledValueNumber:
+		if _, err := strconv.ParseFloat(s.Value, 64); err == nil {
+			value = json.Number(s.Value)
 		}
 	}
-	return nil
+	return json.Marshal(struct {
+		alias
+		Value any `json:"value"`
+	}{alias(s), value})
 }
 
 // StyledText represents formatted text with optional markup tags.

@@ -280,6 +280,26 @@ func (d *Database) SetMetadata(key string, value any) error {
 	return setMetadata(d.db, key, value)
 }
 
+// GetJSON returns the stored json_data of the object of type objType with the
+// given handle, or nil when no such object exists.
+func (d *Database) GetJSON(objType ObjectType, handle string) (json.RawMessage, error) {
+	if _, ok := defaultIDFormat[objType]; !ok {
+		return nil, fmt.Errorf("gogramps: unknown object type %q", objType)
+	}
+	var jsonData string
+	err := d.db.QueryRow(
+		fmt.Sprintf("SELECT json_data FROM %s WHERE handle = ?", string(objType)),
+		handle,
+	).Scan(&jsonData)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(jsonData), nil
+}
+
 // get retrieves a single object from the specified table by handle.
 func get[T any](d *Database, table, handle string) (*T, error) {
 	var jsonData string

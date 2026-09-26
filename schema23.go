@@ -87,12 +87,20 @@ const (
 	SharedAncestorRejected  = 3
 )
 
+// DNAAttributeType values.
+const (
+	DNAAttributeUnknown = -1
+	DNAAttributeCustom  = 0
+)
+
 // DNAAttribute is a typed key/value attribute on a DNATest or DNAMatch.
 type DNAAttribute struct {
-	Class   string     `json:"_class"`
-	Private bool       `json:"private"`
-	Type    GrampsType `json:"type"`
-	Value   string     `json:"value"`
+	Class        string     `json:"_class"`
+	Private      bool       `json:"private"`
+	Type         GrampsType `json:"type"`
+	Value        string     `json:"value"`
+	CitationList []string   `json:"citation_list"`
+	NoteList     []string   `json:"note_list"`
 }
 
 // DNASegment is a single shared chromosomal segment within a DNAMatch.
